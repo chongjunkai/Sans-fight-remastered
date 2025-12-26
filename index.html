@@ -295,7 +295,6 @@
     </style>
 </head>
 <body>
-    <!-- ✅ TITLE UPDATED -->
     <h1 id="game-title">Sans fight : Remastered</h1>
     
     <div id="game-container">
@@ -423,14 +422,20 @@
         // Key state tracking
         const keysPressed = {};
         
-        // Initialize game
-        function init(diff = 'medium') {
+        // ✅ FIXED INIT FUNCTION - GUARANTEED TO WORK
+        function init(diff = null) {
+            if (diff === null) {
+                // First load - show difficulty screen
+                gameState = 'difficulty';
+                updateUI();
+                render();
+                return;
+            }
+            
+            // After difficulty is selected
             difficulty = diff;
             winTimer = DIFFICULTY_SETTINGS[difficulty].time;
-            
-            // ✅ FIXED: Show difficulty screen on first load
-            gameState = (diff === 'medium' && arguments.length === 0) ? 'difficulty' : 'intro';
-            
+            gameState = 'intro';
             playerHP = 92;
             playerPos = { x: 320, y: 380 };
             bones = [];
@@ -1224,7 +1229,7 @@
         });
         
         // Initialize and start game
-        init(); // This now shows difficulty screen first
+        init(); // This WILL show difficulty screen
         gameLoop();
     </script>
 </body>
