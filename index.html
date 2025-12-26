@@ -295,7 +295,7 @@
     </style>
 </head>
 <body>
-    <!-- ✅ TITLE CHANGED HERE -->
+    <!-- ✅ TITLE UPDATED -->
     <h1 id="game-title">Sans fight : Remastered</h1>
     
     <div id="game-container">
@@ -428,7 +428,9 @@
             difficulty = diff;
             winTimer = DIFFICULTY_SETTINGS[difficulty].time;
             
-            gameState = 'intro';
+            // ✅ FIXED: Show difficulty screen on first load
+            gameState = (diff === 'medium' && arguments.length === 0) ? 'difficulty' : 'intro';
+            
             playerHP = 92;
             playerPos = { x: 320, y: 380 };
             bones = [];
@@ -461,7 +463,6 @@
                 homingTimerInterval = null;
             }
             
-            // ✅ THIS LINE WAS ADDED TO FIX DIFFICULTY SELECTION
             updateUI();
             render();
         }
@@ -1223,7 +1224,7 @@
         });
         
         // Initialize and start game
-        init();
+        init(); // This now shows difficulty screen first
         gameLoop();
     </script>
 </body>
