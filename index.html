@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sans Fight: Fixed Edition</title>
+    <title>Sans Fight: Fixed Homing Bones</title>
     <style>
         * {
             margin: 0;
@@ -295,7 +295,7 @@
     </style>
 </head>
 <body>
-    <h1 id="game-title">SANS FIGHT: FIXED EDITION</h1>
+    <h1 id="game-title">SANS FIGHT: FIXED HOMING BONES</h1>
     
     <div id="game-container">
         <canvas id="game-canvas" width="640" height="480"></canvas>
@@ -396,7 +396,6 @@
         let homingActive = false;
         let homingTimer = 0;
         let homingTimerInterval = null;
-        let homingBoneIds = new Set(); // Track homing bone IDs
         
         // DOM elements
         const canvas = document.getElementById('game-canvas');
@@ -450,7 +449,6 @@
             winCounter = 0;
             homingActive = false;
             homingTimer = 0;
-            homingBoneIds.clear();
             
             // Clear any existing timers
             if (winTimerInterval) {
@@ -563,9 +561,8 @@
             }
             homingTimerEl.style.opacity = '0';
             
-            // Remove all homing bones
-            bones = bones.filter(bone => !homingBoneIds.has(bone.id));
-            homingBoneIds.clear();
+            // Remove all homing bones immediately
+            bones = bones.filter(bone => bone.type !== 'chase');
         }
         
         // Trigger screen shake
@@ -843,18 +840,21 @@
                     bone.y += bone.vy;
                     bone.angle = Math.atan2(bone.vy, bone.vx);
                 } else if (bone.type === 'chase') {
-                    // Homing movement (reduced speed)
-                    const dx = playerPos.x - bone.x;
-                    const dy = playerPos.y - bone.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist > 5) {
-                        // Use difficulty-specific homing speed
-                        const speed = DIFFICULTY_SETTINGS[difficulty].homingSpeed;
-                        bone.vx = (dx / dist) * speed;
-                        bone.vy = (dy / dist) * speed;
+                    // Only update homing bones if homing is still active
+                    if (homingActive) {
+                        const dx = playerPos.x - bone.x;
+                        const dy = playerPos.y - bone.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist > 5) {
+                            // Use difficulty-specific homing speed
+                            const speed = DIFFICULTY_SETTINGS[difficulty].homingSpeed;
+                            bone.vx = (dx / dist) * speed;
+                            bone.vy = (dy / dist) * speed;
+                        }
+                        bone.x += bone.vx;
+                        bone.y += bone.vy;
                     }
-                    bone.x += bone.vx;
-                    bone.y += bone.vy;
+                    // If homing is not active, don't update (bone will be removed below)
                 } else {
                     // Regular movement with difficulty speed
                     bone.x += bone.vx;
@@ -864,6 +864,11 @@
             }).filter(bone => 
                 bone.x > -50 && bone.x < 690 && bone.y > -50 && bone.y < 530
             );
+            
+            // Remove homing bones if homing is not active
+            if (!homingActive) {
+                bones = bones.filter(bone => bone.type !== 'chase');
+            }
             
             // Update wave phase
             wavePhase += 0.1;
@@ -1092,17 +1097,14 @@
                 case 'bones-chase':
                     // Homing bones (less OP)
                     for (let i = 0; i < 3; i++) { // Reduced count
-                        const boneId = Date.now() + Math.random();
                         bones.push({
                             type: 'chase',
-                            id: boneId,
                             x: BATTLE_BOX.x + Math.random() * BATTLE_BOX.width,
                             y: BATTLE_BOX.y + Math.random() * BATTLE_BOX.height,
                             vx: 0,
                             vy: 0,
                             speed: DIFFICULTY_SETTINGS[difficulty].homingSpeed
                         });
-                        homingBoneIds.add(boneId);
                     }
                     // Activate homing phase
                     startHomingPhase();
