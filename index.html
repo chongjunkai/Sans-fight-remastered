@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sans Fight: Remastered</title>
+    <title>Sans Fight: Ultimate Edition</title>
     <style>
         * {
             margin: 0;
@@ -292,10 +292,22 @@
             transition: opacity 0.3s;
             z-index: 5;
         }
+        
+        .warning-flash {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ff6600;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 16;
+        }
     </style>
 </head>
 <body>
-    <h1 id="game-title">Sans fight : Remastered</h1>
+    <h1 id="game-title">SANS FIGHT: ULTIMATE EDITION</h1>
     
     <div id="game-container">
         <canvas id="game-canvas" width="640" height="480"></canvas>
@@ -303,6 +315,7 @@
         <div class="homing-timer" id="homing-timer"></div>
         <div class="damage-flash" id="damage-flash"></div>
         <div class="victory-flash" id="victory-flash"></div>
+        <div class="warning-flash" id="warning-flash"></div>
         <div id="win-counter"></div>
         
         <div id="dialogue-box">
@@ -359,7 +372,11 @@
             'slam', 
             'bones-rain', 
             'bones-chase', 
-            'bones-cross'
+            'bones-cross',
+            'laser-sweep',      // New laser attack
+            'laser-grid',       // New grid laser attack
+            'bone-explosion',   // New explosion attack
+            'gravity-reverse'   // New reverse gravity attack
         ];
         
         // Difficulty settings
@@ -376,6 +393,8 @@
         let bones = [];
         let blasters = [];
         let platforms = [];
+        let lasers = [];
+        let particles = [];
         let attackPhase = 0;
         let iframes = 0;
         let dialogue = "it's a beautiful day outside.";
@@ -396,6 +415,8 @@
         let homingActive = false;
         let homingTimer = 0;
         let homingTimerInterval = null;
+        let reverseGravity = false;
+        let gravityTimer = 0;
         
         // DOM elements
         const canvas = document.getElementById('game-canvas');
@@ -414,6 +435,7 @@
         const homingTimerEl = document.getElementById('homing-timer');
         const damageFlash = document.getElementById('damage-flash');
         const victoryFlash = document.getElementById('victory-flash');
+        const warningFlash = document.getElementById('warning-flash');
         const winCounterEl = document.getElementById('win-counter');
         const easyBtn = document.getElementById('easy-btn');
         const mediumBtn = document.getElementById('medium-btn');
@@ -422,7 +444,7 @@
         // Key state tracking
         const keysPressed = {};
         
-        // ✅ FIXED INIT FUNCTION - GUARANTEED TO WORK
+        // Initialize game
         function init(diff = null) {
             if (diff === null) {
                 // First load - show difficulty screen
@@ -441,6 +463,8 @@
             bones = [];
             blasters = [];
             platforms = [];
+            lasers = [];
+            particles = [];
             attackPhase = 0;
             iframes = 0;
             dialogue = "it's a beautiful day outside.";
@@ -457,6 +481,8 @@
             winCounter = 0;
             homingActive = false;
             homingTimer = 0;
+            reverseGravity = false;
+            gravityTimer = 0;
             
             // Clear any existing timers
             if (winTimerInterval) {
@@ -524,7 +550,11 @@
                 'slam': 'GRAVITY SLAM',
                 'bones-rain': 'BONE RAIN',
                 'bones-chase': 'HOMING BONES',
-                'bones-cross': 'CROSS ATTACK'
+                'bones-cross': 'CROSS ATTACK',
+                'laser-sweep': 'LASER SWEEP',
+                'laser-grid': 'GRID LASER',
+                'bone-explosion': 'BONE EXPLOSION',
+                'gravity-reverse': 'REVERSE GRAVITY'
             };
             
             attackIndicator.textContent = attackNames[attackName] || 'ATTACK';
@@ -573,6 +603,27 @@
             bones = bones.filter(bone => bone.type !== 'chase');
         }
         
+        // Start reverse gravity phase
+        function startReverseGravity() {
+            reverseGravity = true;
+            gravityTimer = 5; // 5 seconds of reverse gravity
+            
+            // Show warning flash
+            warningFlash.style.opacity = '0.3';
+            setTimeout(() => {
+                warningFlash.style.opacity = '0';
+            }, 500);
+            
+            // Start gravity timer
+            const gravityInterval = setInterval(() => {
+                gravityTimer -= 0.1;
+                if (gravityTimer <= 0) {
+                    reverseGravity = false;
+                    clearInterval(gravityInterval);
+                }
+            }, 100);
+        }
+        
         // Trigger screen shake
         function triggerScreenShake(intensity = 10) {
             screenShake = intensity;
@@ -592,6 +643,29 @@
             setTimeout(() => {
                 victoryFlash.style.opacity = '0';
             }, 200);
+        }
+        
+        // Show warning flash (for laser attacks)
+        function showWarningFlash() {
+            warningFlash.style.opacity = '0.5';
+            setTimeout(() => {
+                warningFlash.style.opacity = '0';
+            }, 300);
+        }
+        
+        // Create particles
+        function createParticles(x, y, color, count = 10) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    life: 30,
+                    color: color,
+                    size: 2 + Math.random() * 3
+                });
+            }
         }
         
         // Show win counter
@@ -704,6 +778,12 @@
                     ctx.fillStyle = '#66ccff';
                     ctx.fillRect(bone.x - 5, bone.y - 15, 10, 30);
                     ctx.fillStyle = '#fff'; // Reset for next bone
+                } else if (bone.type === 'explosion') {
+                    // Draw explosion bone with pulsing effect
+                    const pulse = Math.sin(Date.now() * 0.01) * 5;
+                    ctx.fillStyle = '#ff6666';
+                    ctx.fillRect(bone.x - 5 - pulse/2, bone.y - 15 - pulse/2, 10 + pulse, 30 + pulse);
+                    ctx.fillStyle = '#fff';
                 } else {
                     ctx.fillRect(bone.x - 5, bone.y - 15, 10, 30);
                 }
@@ -734,6 +814,57 @@
                     ctx.fillStyle = '#ffff00';
                     ctx.fillRect(blaster.x - 120, blaster.y - 15, 240, 30);
                 }
+            });
+        }
+        
+        // Draw lasers
+        function drawLasers() {
+            lasers.forEach(laser => {
+                if (laser.type === 'sweep') {
+                    // Horizontal sweeping laser
+                    ctx.fillStyle = laser.active ? '#ff0000' : 'rgba(255, 0, 0, 0.3)';
+                    ctx.fillRect(laser.x, laser.y, laser.width, laser.height);
+                    
+                    // Laser glow
+                    if (laser.active) {
+                        ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+                        ctx.fillRect(laser.x - 5, laser.y - 5, laser.width + 10, laser.height + 10);
+                    }
+                } else if (laser.type === 'grid') {
+                    // Grid laser pattern
+                    ctx.strokeStyle = laser.active ? '#ff00ff' : 'rgba(255, 0, 255, 0.3)';
+                    ctx.lineWidth = laser.active ? 3 : 1;
+                    
+                    // Vertical lines
+                    for (let i = 0; i < laser.columns; i++) {
+                        const x = laser.x + i * laser.spacing;
+                        ctx.beginPath();
+                        ctx.moveTo(x, laser.y);
+                        ctx.lineTo(x, laser.y + laser.height);
+                        ctx.stroke();
+                    }
+                    
+                    // Horizontal lines
+                    for (let i = 0; i < laser.rows; i++) {
+                        const y = laser.y + i * laser.spacing;
+                        ctx.beginPath();
+                        ctx.moveTo(laser.x, y);
+                        ctx.lineTo(laser.x + laser.width, y);
+                        ctx.stroke();
+                    }
+                }
+            });
+        }
+        
+        // Draw particles
+        function drawParticles() {
+            particles.forEach(particle => {
+                ctx.globalAlpha = particle.life / 30;
+                ctx.fillStyle = particle.color;
+                ctx.beginPath();
+                ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
             });
         }
         
@@ -774,6 +905,8 @@
             drawPlatforms();
             drawBones();
             drawBlasters();
+            drawLasers();
+            drawParticles();
             drawPlayer();
         }
         
@@ -814,6 +947,20 @@
                     newY = BATTLE_BOX.y + BATTLE_BOX.height - 10;
                     newVelY = 0;
                 }
+            } else if (reverseGravity) {
+                // Reverse gravity movement
+                if (keysPressed['ArrowLeft']) newX -= PLAYER_SPEED;
+                if (keysPressed['ArrowRight']) newX += PLAYER_SPEED;
+                if (keysPressed['ArrowUp']) newY -= PLAYER_SPEED;
+                if (keysPressed['ArrowDown']) newY += PLAYER_SPEED;
+                
+                // Apply reverse gravity
+                newVelY -= GRAVITY;
+                newY += newVelY;
+                
+                // Clamp to battle box
+                newX = Math.max(BATTLE_BOX.x + 10, Math.min(BATTLE_BOX.x + BATTLE_BOX.width - 10, newX));
+                newY = Math.max(BATTLE_BOX.y + 10, Math.min(BATTLE_BOX.y + BATTLE_BOX.height - 10, newY));
             } else {
                 // Normal movement
                 if (keysPressed['ArrowLeft']) newX -= PLAYER_SPEED;
@@ -822,9 +969,11 @@
                 if (keysPressed['ArrowDown']) newY += PLAYER_SPEED;
             }
             
-            // Clamp to battle box
-            newX = Math.max(BATTLE_BOX.x + 10, Math.min(BATTLE_BOX.x + BATTLE_BOX.width - 10, newX));
-            newY = Math.max(BATTLE_BOX.y + 10, Math.min(BATTLE_BOX.y + BATTLE_BOX.height - 10, newY));
+            // Clamp to battle box (for non-reverse gravity)
+            if (!reverseGravity) {
+                newX = Math.max(BATTLE_BOX.x + 10, Math.min(BATTLE_BOX.x + BATTLE_BOX.width - 10, newX));
+                newY = Math.max(BATTLE_BOX.y + 10, Math.min(BATTLE_BOX.y + BATTLE_BOX.height - 10, newY));
+            }
             
             playerPos.x = newX;
             playerPos.y = newY;
@@ -848,21 +997,21 @@
                     bone.y += bone.vy;
                     bone.angle = Math.atan2(bone.vy, bone.vx);
                 } else if (bone.type === 'chase') {
-                    // Only update homing bones if homing is still active
-                    if (homingActive) {
-                        const dx = playerPos.x - bone.x;
-                        const dy = playerPos.y - bone.y;
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-                        if (dist > 5) {
-                            // Use difficulty-specific homing speed
-                            const speed = DIFFICULTY_SETTINGS[difficulty].homingSpeed;
-                            bone.vx = (dx / dist) * speed;
-                            bone.vy = (dy / dist) * speed;
-                        }
-                        bone.x += bone.vx;
-                        bone.y += bone.vy;
+                    // Homing movement (reduced speed)
+                    const dx = playerPos.x - bone.x;
+                    const dy = playerPos.y - bone.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > 5) {
+                        // Use difficulty-specific homing speed
+                        const speed = DIFFICULTY_SETTINGS[difficulty].homingSpeed;
+                        bone.vx = (dx / dist) * speed;
+                        bone.vy = (dy / dist) * speed;
                     }
-                    // If homing is not active, don't update (bone will be removed below)
+                    bone.x += bone.vx;
+                    bone.y += bone.vy;
+                } else if (bone.type === 'explosion') {
+                    // Explosion bone - pulsing in place
+                    bone.pulsePhase += 0.1;
                 } else {
                     // Regular movement with difficulty speed
                     bone.x += bone.vx;
@@ -873,13 +1022,39 @@
                 bone.x > -50 && bone.x < 690 && bone.y > -50 && bone.y < 530
             );
             
-            // Remove homing bones if homing is not active
-            if (!homingActive) {
-                bones = bones.filter(bone => bone.type !== 'chase');
-            }
-            
             // Update wave phase
             wavePhase += 0.1;
+            
+            // Update lasers
+            lasers = lasers.map(laser => {
+                if (laser.type === 'sweep') {
+                    // Sweeping laser logic
+                    laser.sweepPhase += 0.05;
+                    laser.x = BATTLE_BOX.x + Math.sin(laser.sweepPhase) * (BATTLE_BOX.width - laser.width);
+                    
+                    // Activate laser periodically
+                    if (laser.sweepPhase % (Math.PI * 2) < 0.5) {
+                        laser.active = true;
+                        setTimeout(() => {
+                            if (lasers.includes(laser)) laser.active = false;
+                        }, 300);
+                    }
+                }
+                return laser;
+            }).filter(laser => laser.life > 0);
+            
+            // Update particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.1;
+                p.life--;
+                
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
             
             // Check bone collisions
             if (iframes === 0) {
@@ -892,24 +1067,20 @@
                         // Different damage based on bone type
                         let damage = 5;
                         if (bone.type === 'dart') damage = 10;
-                        if (bone.type === 'chase') damage = 7; // Reduced homing damage
+                        if (bone.type === 'chase') damage = 7;
+                        if (bone.type === 'explosion') damage = 15;
                         
                         playerHP = Math.max(0, playerHP - damage);
                         iframes = 30;
                         sansExpression = 'wink';
                         showDamageFlash();
                         triggerScreenShake(15);
+                        createParticles(playerPos.x, playerPos.y, '#ff4444', 15);
                         setTimeout(() => sansExpression = 'normal', 500);
                         break;
                     }
                 }
             }
-            
-            // Update blasters
-            blasters = blasters.map(blaster => ({
-                ...blaster,
-                charge: blaster.charge + 1
-            })).filter(blaster => blaster.charge < 80);
             
             // Check blaster collisions
             const firingBlasters = blasters.filter(b => b.charge === 60);
@@ -925,8 +1096,48 @@
                         sansExpression = 'wink';
                         showDamageFlash();
                         triggerScreenShake(20);
+                        createParticles(playerPos.x, playerPos.y, '#ffff00', 10);
                         setTimeout(() => sansExpression = 'normal', 500);
                         break;
+                    }
+                }
+            }
+            
+            // Check laser collisions
+            if (iframes === 0) {
+                for (const laser of lasers) {
+                    if (laser.active) {
+                        if (laser.type === 'sweep') {
+                            if (playerPos.x >= laser.x && 
+                                playerPos.x <= laser.x + laser.width &&
+                                playerPos.y >= laser.y && 
+                                playerPos.y <= laser.y + laser.height) {
+                                playerHP = Math.max(0, playerHP - 20);
+                                iframes = 40;
+                                sansExpression = 'wink';
+                                showDamageFlash();
+                                triggerScreenShake(25);
+                                createParticles(playerPos.x, playerPos.y, '#ff0000', 20);
+                                setTimeout(() => sansExpression = 'normal', 500);
+                                break;
+                            }
+                        } else if (laser.type === 'grid') {
+                            // Check if player is on grid intersection
+                            const gridX = Math.floor((playerPos.x - laser.x) / laser.spacing);
+                            const gridY = Math.floor((playerPos.y - laser.y) / laser.spacing);
+                            
+                            if (gridX >= 0 && gridX < laser.columns && 
+                                gridY >= 0 && gridY < laser.rows) {
+                                playerHP = Math.max(0, playerHP - 5);
+                                iframes = 30;
+                                sansExpression = 'wink';
+                                showDamageFlash();
+                                triggerScreenShake(15);
+                                createParticles(playerPos.x, playerPos.y, '#ff00ff', 10);
+                                setTimeout(() => sansExpression = 'normal', 500);
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -964,6 +1175,11 @@
             
             // Difficulty-specific bone speed
             const boneSpeed = DIFFICULTY_SETTINGS[difficulty].boneSpeed;
+            
+            // Show warning for dangerous attacks
+            if (randomAttack === 'laser-sweep' || randomAttack === 'laser-grid' || randomAttack === 'bone-explosion') {
+                showWarningFlash();
+            }
             
             switch(randomAttack) {
                 case 'bones-horizontal':
@@ -1155,6 +1371,87 @@
                         });
                     }
                     break;
+                    
+                case 'laser-sweep':
+                    // Sweeping horizontal laser
+                    lasers.push({
+                        type: 'sweep',
+                        x: BATTLE_BOX.x,
+                        y: BATTLE_BOX.y + Math.random() * BATTLE_BOX.height,
+                        width: 20,
+                        height: 20,
+                        active: false,
+                        sweepPhase: 0,
+                        life: 300
+                    });
+                    break;
+                    
+                case 'laser-grid':
+                    // Grid laser pattern
+                    lasers.push({
+                        type: 'grid',
+                        x: BATTLE_BOX.x,
+                        y: BATTLE_BOX.y,
+                        width: BATTLE_BOX.width,
+                        height: BATTLE_BOX.height,
+                        spacing: 40,
+                        columns: Math.floor(BATTLE_BOX.width / 40),
+                        rows: Math.floor(BATTLE_BOX.height / 40),
+                        active: false,
+                        life: 200
+                    });
+                    
+                    // Activate grid periodically
+                    let gridActivation = 0;
+                    const gridInterval = setInterval(() => {
+                        if (!lasers.some(l => l.type === 'grid')) {
+                            clearInterval(gridInterval);
+                            return;
+                        }
+                        
+                        gridActivation++;
+                        const gridLaser = lasers.find(l => l.type === 'grid');
+                        if (gridLaser) {
+                            gridLaser.active = true;
+                            setTimeout(() => {
+                                if (gridLaser) gridLaser.active = false;
+                            }, 200);
+                        }
+                        
+                        if (gridActivation > 10) {
+                            clearInterval(gridInterval);
+                        }
+                    }, 800);
+                    break;
+                    
+                case 'bone-explosion':
+                    // Bone explosion attack
+                    const explosionCount = 12;
+                    for (let i = 0; i < explosionCount; i++) {
+                        bones.push({
+                            type: 'explosion',
+                            x: BATTLE_BOX.x + BATTLE_BOX.width/2,
+                            y: BATTLE_BOX.y + BATTLE_BOX.height/2,
+                            vx: Math.cos(i / explosionCount * Math.PI * 2) * 4,
+                            vy: Math.sin(i / explosionCount * Math.PI * 2) * 4,
+                            pulsePhase: 0
+                        });
+                    }
+                    break;
+                    
+                case 'gravity-reverse':
+                    // Reverse gravity attack
+                    startReverseGravity();
+                    // Spawn bones that fall upward
+                    for (let i = 0; i < 10; i++) {
+                        bones.push({
+                            x: BATTLE_BOX.x + 20 + Math.random() * (BATTLE_BOX.width - 40),
+                            y: BATTLE_BOX.y + BATTLE_BOX.height + 20,
+                            vx: (Math.random() - 0.5) * 3,
+                            vy: 5 // Falling upward
+                        });
+                    }
+                    break;
             }
             
             // Schedule next attack (random interval between 1.5-3 seconds)
@@ -1229,7 +1526,7 @@
         });
         
         // Initialize and start game
-        init(); // This WILL show difficulty screen
+        init();
         gameLoop();
     </script>
 </body>
