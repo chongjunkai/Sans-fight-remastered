@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sans Fight: Balanced Edition</title>
+    <title>Sans Fight: Character Selection</title>
     <style>
         * {
             margin: 0;
@@ -60,7 +60,7 @@
             opacity: 0.8;
         }
         
-        #difficulty-screen, #gameover-screen, #victory-screen {
+        #character-screen, #difficulty-screen, #gameover-screen, #victory-screen {
             position: absolute;
             top: 0;
             left: 0;
@@ -74,7 +74,7 @@
             z-index: 20;
         }
         
-        #difficulty-title {
+        #character-title, #difficulty-title {
             color: #ffaa44;
             font-size: 48px;
             margin-bottom: 30px;
@@ -160,10 +160,47 @@
             background: linear-gradient(to bottom, #88ff88, #00ff00);
         }
         
-        .difficulty-desc {
+        .difficulty-desc, .character-desc {
             color: #aaa;
             margin: 8px 0;
             font-size: 16px;
+            text-align: center;
+            max-width: 80%;
+        }
+        
+        .character-card {
+            background: rgba(50, 50, 80, 0.7);
+            border: 2px solid #ffaa44;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 15px;
+            width: 200px;
+            text-align: center;
+            transition: transform 0.3s;
+            cursor: pointer;
+        }
+        
+        .character-card:hover {
+            transform: translateY(-5px);
+            border-color: #ffffff;
+            box-shadow: 0 5px 15px rgba(255, 170, 68, 0.5);
+        }
+        
+        .character-card.selected {
+            border-color: #44ff44;
+            background: rgba(70, 100, 80, 0.8);
+        }
+        
+        .character-name {
+            font-size: 24px;
+            color: #ffaa44;
+            margin-bottom: 10px;
+        }
+        
+        .character-ability {
+            font-size: 14px;
+            color: #66ccff;
+            margin-top: 8px;
         }
         
         #stats-container {
@@ -307,7 +344,7 @@
     </style>
 </head>
 <body>
-    <h1 id="game-title">SANS FIGHT: BALANCED EDITION</h1>
+    <h1 id="game-title">SANS FIGHT: CHARACTER EDITION</h1>
     
     <div id="game-container">
         <canvas id="game-canvas" width="640" height="480"></canvas>
@@ -322,6 +359,37 @@
         <div id="dialogue-box">
             <div id="dialogue-text">it's a beautiful day outside.</div>
             <div id="dialogue-hint">Press Z to continue</div>
+        </div>
+        
+        <div id="character-screen">
+            <div id="character-title">SELECT YOUR CHARACTER</div>
+            <div style="display: flex; flex-wrap: wrap; justify-content: center; max-width: 600px; margin: 20px 0;">
+                <div class="character-card" data-character="frisk">
+                    <div class="character-name">FRISK</div>
+                    <div style="font-size: 18px; margin: 10px 0;">❤</div>
+                    <div class="character-desc">Standard character with balanced abilities</div>
+                    <div class="character-ability">Ability: Short invincibility after taking damage</div>
+                </div>
+                <div class="character-card" data-character="papyrus">
+                    <div class="character-name">PAPYRUS</div>
+                    <div style="font-size: 18px; margin: 10px 0;">🦴</div>
+                    <div class="character-desc">Larger hitbox but can deflect bones</div>
+                    <div class="character-ability">Ability: Press SPACE to deflect incoming bones</div>
+                </div>
+                <div class="character-card" data-character="undyne">
+                    <div class="character-name">UNDYNE</div>
+                    <div style="font-size: 18px; margin: 10px 0;">⚔️</div>
+                    <div class="character-desc">Smaller hitbox and faster movement</div>
+                    <div class="character-ability">Ability: 20% faster movement speed</div>
+                </div>
+                <div class="character-card" data-character="flowey">
+                    <div class="character-name">FLOWEY</div>
+                    <div style="font-size: 18px; margin: 10px 0;">🌻</div>
+                    <div class="character-desc">Can slow down time temporarily</div>
+                    <div class="character-ability">Ability: Press X to slow time for 3 seconds</div>
+                </div>
+            </div>
+            <button id="select-btn" class="screen-btn" disabled>SELECT CHARACTER</button>
         </div>
         
         <div id="difficulty-screen">
@@ -374,11 +442,43 @@
             'bones-rain', 
             'bones-chase', 
             'bones-cross',
-            'laser-sweep',      // New laser attack
-            'laser-grid',       // New grid laser attack (less OP)
-            'bone-explosion',   // New explosion attack
-            'gravity-reverse'   // New reverse gravity attack
+            'laser-sweep',      
+            'laser-grid',       
+            'bone-explosion',   
+            'gravity-reverse'   
         ];
+        
+        // Character abilities
+        const CHARACTER_ABILITIES = {
+            'frisk': {
+                name: 'Frisk',
+                hp: 92,
+                speed: 3,
+                ability: 'invincibility',
+                abilityDesc: 'Short invincibility after taking damage'
+            },
+            'papyrus': {
+                name: 'Papyrus',
+                hp: 92,
+                speed: 2.5,
+                ability: 'deflect',
+                abilityDesc: 'Press SPACE to deflect incoming bones'
+            },
+            'undyne': {
+                name: 'Undyne',
+                hp: 92,
+                speed: 3.6,
+                ability: 'speed',
+                abilityDesc: '20% faster movement speed'
+            },
+            'flowey': {
+                name: 'Flowey',
+                hp: 92,
+                speed: 3,
+                ability: 'slowtime',
+                abilityDesc: 'Press X to slow time for 3 seconds'
+            }
+        };
         
         // Difficulty settings
         const DIFFICULTY_SETTINGS = {
@@ -388,7 +488,7 @@
         };
         
         // Game state
-        let gameState = 'difficulty';
+        let gameState = 'character';
         let playerHP = 92;
         let playerPos = { x: 320, y: 380 };
         let bones = [];
@@ -421,6 +521,12 @@
         let laserActive = false;
         let laserTimer = 0;
         let laserTimerInterval = null;
+        let selectedCharacter = 'frisk';
+        let abilityCooldown = 0;
+        let timeSlowActive = false;
+        let timeSlowDuration = 0;
+        let deflectActive = false;
+        let deflectTimer = 0;
         
         // DOM elements
         const canvas = document.getElementById('game-canvas');
@@ -428,6 +534,7 @@
         const dialogueBox = document.getElementById('dialogue-box');
         const dialogueText = document.getElementById('dialogue-text');
         const dialogueHint = document.getElementById('dialogue-hint');
+        const characterScreen = document.getElementById('character-screen');
         const difficultyScreen = document.getElementById('difficulty-screen');
         const gameoverScreen = document.getElementById('gameover-screen');
         const victoryScreen = document.getElementById('victory-screen');
@@ -445,17 +552,24 @@
         const easyBtn = document.getElementById('easy-btn');
         const mediumBtn = document.getElementById('medium-btn');
         const hardBtn = document.getElementById('hard-btn');
+        const selectBtn = document.getElementById('select-btn');
+        const characterCards = document.querySelectorAll('.character-card');
         
         // Key state tracking
         const keysPressed = {};
         
         // Initialize game
         function init(diff = null) {
+            if (gameState === 'character') {
+                characterScreen.style.display = 'flex';
+                return;
+            }
+            
             if (diff === null) {
-                // First load - show difficulty screen
+                // Show difficulty screen
                 gameState = 'difficulty';
-                updateUI();
-                render();
+                difficultyScreen.style.display = 'flex';
+                characterScreen.style.display = 'none';
                 return;
             }
             
@@ -463,7 +577,10 @@
             difficulty = diff;
             winTimer = DIFFICULTY_SETTINGS[difficulty].time;
             gameState = 'intro';
-            playerHP = 92;
+            
+            // Apply character stats
+            const char = CHARACTER_ABILITIES[selectedCharacter];
+            playerHP = char.hp;
             playerPos = { x: 320, y: 380 };
             bones = [];
             blasters = [];
@@ -490,6 +607,11 @@
             gravityTimer = 0;
             laserActive = false;
             laserTimer = 0;
+            abilityCooldown = 0;
+            timeSlowActive = false;
+            timeSlowDuration = 0;
+            deflectActive = false;
+            deflectTimer = 0;
             
             // Clear any existing timers
             if (winTimerInterval) {
@@ -509,9 +631,24 @@
             render();
         }
         
+        // Character selection
+        characterCards.forEach(card => {
+            card.addEventListener('click', () => {
+                characterCards.forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                selectedCharacter = card.dataset.character;
+                selectBtn.disabled = false;
+            });
+        });
+        
+        selectBtn.addEventListener('click', () => {
+            gameState = 'difficulty';
+            init();
+        });
+        
         // Update UI elements
         function updateUI() {
-            hpText.textContent = `${playerHP} / 92`;
+            hpText.textContent = `${playerHP} / ${CHARACTER_ABILITIES[selectedCharacter].hp}`;
             timerText.textContent = `${Math.ceil(winTimer)}s`;
             
             if (showDialogue) {
@@ -520,6 +657,12 @@
                 dialogueHint.style.display = gameState === 'intro' ? 'block' : 'none';
             } else {
                 dialogueBox.style.display = 'none';
+            }
+            
+            if (gameState === 'character') {
+                characterScreen.style.display = 'flex';
+            } else {
+                characterScreen.style.display = 'none';
             }
             
             if (gameState === 'difficulty') {
@@ -554,6 +697,23 @@
                 laserTimerEl.style.opacity = '1';
             } else {
                 laserTimerEl.style.opacity = '0';
+            }
+            
+            // Update ability cooldown display
+            if (abilityCooldown > 0) {
+                if (selectedCharacter === 'flowey') {
+                    document.getElementById('controls-text').textContent = 'Arrow Keys to move • X: Slow Time (cooldown)';
+                } else if (selectedCharacter === 'papyrus') {
+                    document.getElementById('controls-text').textContent = 'Arrow Keys to move • SPACE: Deflect (cooldown)';
+                }
+            } else {
+                if (selectedCharacter === 'flowey') {
+                    document.getElementById('controls-text').textContent = 'Arrow Keys to move • X: Slow Time';
+                } else if (selectedCharacter === 'papyrus') {
+                    document.getElementById('controls-text').textContent = 'Arrow Keys to move • SPACE: Deflect';
+                } else {
+                    document.getElementById('controls-text').textContent = 'Arrow Keys to move • Z to start';
+                }
             }
         }
         
@@ -660,7 +820,7 @@
         // Start reverse gravity phase
         function startReverseGravity() {
             reverseGravity = true;
-            gravityTimer = 5; // 5 seconds of reverse gravity
+            gravityTimer = 5;
             
             // Show warning flash
             warningFlash.style.opacity = '0.3';
@@ -740,18 +900,17 @@
             
             // Body with better proportions
             ctx.fillStyle = '#fff';
-            ctx.fillRect(sansX - 25, sansY + 35, 50, 85); // More proportional body
+            ctx.fillRect(sansX - 25, sansY + 35, 50, 85);
             
             // Head with better shape
             ctx.fillStyle = '#fff';
             ctx.beginPath();
-            ctx.arc(sansX, sansY, 30, 0, Math.PI * 2); // Slightly smaller head
+            ctx.arc(sansX, sansY, 30, 0, Math.PI * 2);
             ctx.fill();
             
             // Eyes with better positioning
             ctx.fillStyle = '#000';
             if (sansExpression === 'normal') {
-                // Normal eyes - slightly larger and better positioned
                 ctx.beginPath();
                 ctx.arc(sansX - 10, sansY - 3, 9, 0, Math.PI * 2);
                 ctx.fill();
@@ -759,17 +918,14 @@
                 ctx.arc(sansX + 10, sansY - 3, 9, 0, Math.PI * 2);
                 ctx.fill();
             } else if (sansExpression === 'wink') {
-                // Left eye glowing (larger glow)
                 ctx.fillStyle = '#00ffff';
                 ctx.beginPath();
                 ctx.arc(sansX - 10, sansY - 3, 12, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Right eye closed (better closed eye)
                 ctx.fillStyle = '#000';
                 ctx.fillRect(sansX + 3, sansY - 3, 14, 2);
             } else if (sansExpression === 'smile') {
-                // Happy expression for victory
                 ctx.beginPath();
                 ctx.arc(sansX - 10, sansY - 3, 9, 0, Math.PI * 2);
                 ctx.fill();
@@ -777,7 +933,6 @@
                 ctx.arc(sansX + 10, sansY - 3, 9, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Big smile with better curve
                 ctx.strokeStyle = '#000';
                 ctx.lineWidth = 3;
                 ctx.beginPath();
@@ -785,7 +940,7 @@
                 ctx.stroke();
             }
             
-            // Smile (normal) - better positioned
+            // Smile (normal)
             if (sansExpression !== 'smile') {
                 ctx.strokeStyle = '#000';
                 ctx.lineWidth = 2;
@@ -828,19 +983,16 @@
             
             bones.forEach(bone => {
                 if (bone.type === 'dart') {
-                    // Draw dart shape
                     ctx.save();
                     ctx.translate(bone.x, bone.y);
                     ctx.rotate(bone.angle);
                     ctx.fillRect(-2, -10, 4, 20);
                     ctx.restore();
                 } else if (bone.type === 'chase') {
-                    // Draw chasing bone with light blue color
                     ctx.fillStyle = '#66ccff';
                     ctx.fillRect(bone.x - 5, bone.y - 15, 10, 30);
-                    ctx.fillStyle = '#fff'; // Reset for next bone
+                    ctx.fillStyle = '#fff';
                 } else if (bone.type === 'explosion') {
-                    // Draw explosion bone with pulsing effect
                     const pulse = Math.sin(Date.now() * 0.01) * 3;
                     ctx.fillStyle = '#ff6666';
                     ctx.fillRect(bone.x - 5 - pulse/2, bone.y - 15 - pulse/2, 10 + pulse, 30 + pulse);
@@ -856,13 +1008,11 @@
             blasters.forEach(blaster => {
                 const alpha = Math.min(blaster.charge / 60, 1);
                 
-                // Blaster skull
                 ctx.fillStyle = `rgba(200, 200, 200, ${alpha})`;
                 ctx.beginPath();
                 ctx.arc(blaster.x, blaster.y, 25, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Eye glow
                 ctx.fillStyle = `rgba(255, 255, 0, ${alpha})`;
                 ctx.beginPath();
                 ctx.arc(blaster.x - 8, blaster.y - 5, 5, 0, Math.PI * 2);
@@ -882,21 +1032,18 @@
         function drawLasers() {
             lasers.forEach(laser => {
                 if (laser.type === 'sweep') {
-                    // Horizontal sweeping laser - less intense
                     ctx.fillStyle = laser.active ? '#ff4444' : 'rgba(255, 68, 68, 0.3)';
                     ctx.fillRect(laser.x, laser.y, laser.width, laser.height);
                     
-                    // Laser glow - reduced intensity
                     if (laser.active) {
                         ctx.fillStyle = 'rgba(255, 68, 68, 0.2)';
                         ctx.fillRect(laser.x - 3, laser.y - 3, laser.width + 6, laser.height + 6);
                     }
                 } else if (laser.type === 'grid') {
-                    // Grid laser pattern - much less OP
                     ctx.strokeStyle = laser.active ? '#ff88ff' : 'rgba(255, 136, 255, 0.2)';
                     ctx.lineWidth = laser.active ? 1 : 0.5;
                     
-                    // Vertical lines - wider spacing
+                    // Vertical lines
                     for (let i = 0; i < laser.columns; i++) {
                         const x = laser.x + i * laser.spacing;
                         ctx.beginPath();
@@ -905,7 +1052,7 @@
                         ctx.stroke();
                     }
                     
-                    // Horizontal lines - wider spacing
+                    // Horizontal lines
                     for (let i = 0; i < laser.rows; i++) {
                         const y = laser.y + i * laser.spacing;
                         ctx.beginPath();
@@ -929,12 +1076,37 @@
             });
         }
         
-        // Draw player
+        // Draw player with character-specific visuals
         function drawPlayer() {
             const flashAlpha = iframes > 0 && Math.floor(iframes / 5) % 2 === 0 ? 0.3 : 1;
-            ctx.fillStyle = `rgba(255, 0, 0, ${flashAlpha})`;
+            
+            // Character-specific visuals
+            let playerColor = '#ff0000';
+            let playerSize = 8;
+            
+            if (selectedCharacter === 'papyrus') {
+                playerColor = '#ffffff';
+                playerSize = 10; // Larger hitbox
+            } else if (selectedCharacter === 'undyne') {
+                playerColor = '#44aaff';
+                playerSize = 7; // Smaller hitbox
+            } else if (selectedCharacter === 'flowey') {
+                playerColor = '#ffcc00';
+                playerSize = 8;
+            }
+            
+            // Draw deflect shield for Papyrus
+            if (deflectActive) {
+                ctx.strokeStyle = '#44ff44';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(playerPos.x, playerPos.y, playerSize + 5, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            
+            ctx.fillStyle = `rgba(${parseInt(playerColor.slice(1, 3), 16)}, ${parseInt(playerColor.slice(3, 5), 16)}, ${parseInt(playerColor.slice(5, 7), 16)}, ${flashAlpha})`;
             ctx.beginPath();
-            ctx.arc(playerPos.x, playerPos.y, 8, 0, Math.PI * 2);
+            ctx.arc(playerPos.x, playerPos.y, playerSize, 0, Math.PI * 2);
             ctx.fill();
         }
         
@@ -975,17 +1147,34 @@
         function update() {
             if (gameState !== 'fighting') return;
             
+            // Handle ability cooldown
+            if (abilityCooldown > 0) abilityCooldown -= 0.016;
+            if (timeSlowActive) {
+                timeSlowDuration -= 0.016;
+                if (timeSlowDuration <= 0) {
+                    timeSlowActive = false;
+                }
+            }
+            if (deflectActive) {
+                deflectTimer -= 0.016;
+                if (deflectTimer <= 0) {
+                    deflectActive = false;
+                }
+            }
+            
             // Update player position
             let newX = playerPos.x;
             let newY = playerPos.y;
             let newVelY = velocityY;
             
+            // Get character-specific speed
+            const charSpeed = CHARACTER_ABILITIES[selectedCharacter].speed;
+            const playerSpeed = timeSlowActive ? charSpeed * 0.5 : charSpeed;
+            
             if (slamState) {
-                // During slam attack, apply gravity
                 newVelY += gravity;
                 newY += newVelY;
                 
-                // Check platform collisions
                 let onPlatform = false;
                 for (const platform of platforms) {
                     if (newY >= platform.y - 8 && 
@@ -999,38 +1188,31 @@
                     }
                 }
                 
-                // Horizontal movement only
-                if (keysPressed['ArrowLeft']) newX -= PLAYER_SPEED;
-                if (keysPressed['ArrowRight']) newX += PLAYER_SPEED;
+                if (keysPressed['ArrowLeft']) newX -= playerSpeed;
+                if (keysPressed['ArrowRight']) newX += playerSpeed;
                 
-                // Check if hit bottom
                 if (newY >= BATTLE_BOX.y + BATTLE_BOX.height - 10) {
                     newY = BATTLE_BOX.y + BATTLE_BOX.height - 10;
                     newVelY = 0;
                 }
             } else if (reverseGravity) {
-                // Reverse gravity movement
-                if (keysPressed['ArrowLeft']) newX -= PLAYER_SPEED;
-                if (keysPressed['ArrowRight']) newX += PLAYER_SPEED;
-                if (keysPressed['ArrowUp']) newY -= PLAYER_SPEED;
-                if (keysPressed['ArrowDown']) newY += PLAYER_SPEED;
+                if (keysPressed['ArrowLeft']) newX -= playerSpeed;
+                if (keysPressed['ArrowRight']) newX += playerSpeed;
+                if (keysPressed['ArrowUp']) newY -= playerSpeed;
+                if (keysPressed['ArrowDown']) newY += playerSpeed;
                 
-                // Apply reverse gravity
                 newVelY -= GRAVITY;
                 newY += newVelY;
                 
-                // Clamp to battle box
                 newX = Math.max(BATTLE_BOX.x + 10, Math.min(BATTLE_BOX.x + BATTLE_BOX.width - 10, newX));
                 newY = Math.max(BATTLE_BOX.y + 10, Math.min(BATTLE_BOX.y + BATTLE_BOX.height - 10, newY));
             } else {
-                // Normal movement
-                if (keysPressed['ArrowLeft']) newX -= PLAYER_SPEED;
-                if (keysPressed['ArrowRight']) newX += PLAYER_SPEED;
-                if (keysPressed['ArrowUp']) newY -= PLAYER_SPEED;
-                if (keysPressed['ArrowDown']) newY += PLAYER_SPEED;
+                if (keysPressed['ArrowLeft']) newX -= playerSpeed;
+                if (keysPressed['ArrowRight']) newX += playerSpeed;
+                if (keysPressed['ArrowUp']) newY -= playerSpeed;
+                if (keysPressed['ArrowDown']) newY += playerSpeed;
             }
             
-            // Clamp to battle box (for non-reverse gravity)
             if (!reverseGravity) {
                 newX = Math.max(BATTLE_BOX.x + 10, Math.min(BATTLE_BOX.x + BATTLE_BOX.width - 10, newX));
                 newY = Math.max(BATTLE_BOX.y + 10, Math.min(BATTLE_BOX.y + BATTLE_BOX.height - 10, newY));
@@ -1043,27 +1225,22 @@
             // Update bones
             bones = bones.map(bone => {
                 if (bone.type === 'spiral') {
-                    // Spiral movement
                     bone.angle += bone.rotationSpeed;
                     bone.radius += bone.radiusSpeed;
                     bone.x = bone.centerX + Math.cos(bone.angle) * bone.radius;
                     bone.y = bone.centerY + Math.sin(bone.angle) * bone.radius;
                 } else if (bone.type === 'wave') {
-                    // Wave movement
                     bone.x += bone.vx;
                     bone.y = bone.startY + Math.sin(bone.x * 0.05 + wavePhase) * 30;
                 } else if (bone.type === 'dart') {
-                    // Dart movement
                     bone.x += bone.vx;
                     bone.y += bone.vy;
                     bone.angle = Math.atan2(bone.vy, bone.vx);
                 } else if (bone.type === 'chase') {
-                    // Homing movement (reduced speed)
                     const dx = playerPos.x - bone.x;
                     const dy = playerPos.y - bone.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     if (dist > 5) {
-                        // Use difficulty-specific homing speed
                         const speed = DIFFICULTY_SETTINGS[difficulty].homingSpeed;
                         bone.vx = (dx / dist) * speed;
                         bone.vy = (dy / dist) * speed;
@@ -1071,10 +1248,8 @@
                     bone.x += bone.vx;
                     bone.y += bone.vy;
                 } else if (bone.type === 'explosion') {
-                    // Explosion bone - pulsing in place
                     bone.pulsePhase += 0.1;
                 } else {
-                    // Regular movement with difficulty speed
                     bone.x += bone.vx;
                     bone.y += bone.vy;
                 }
@@ -1083,22 +1258,19 @@
                 bone.x > -50 && bone.x < 690 && bone.y > -50 && bone.y < 530
             );
             
-            // Update wave phase
             wavePhase += 0.1;
             
             // Update lasers
             lasers = lasers.map(laser => {
                 if (laser.type === 'sweep') {
-                    // Sweeping laser logic
-                    laser.sweepPhase += 0.03; // Slower sweep
+                    laser.sweepPhase += 0.03;
                     laser.x = BATTLE_BOX.x + Math.sin(laser.sweepPhase) * (BATTLE_BOX.width - laser.width);
                     
-                    // Activate laser periodically with timer
                     if (laser.sweepPhase % (Math.PI * 2) < 0.3) {
                         laser.active = true;
                         setTimeout(() => {
                             if (lasers.includes(laser)) laser.active = false;
-                        }, 200); // Shorter activation time
+                        }, 200);
                     }
                 }
                 return laser;
@@ -1118,21 +1290,31 @@
             }
             
             // Check bone collisions
-            if (iframes === 0) {
+            if (iframes === 0 && !deflectActive) {
                 for (const bone of bones) {
                     const dx = playerPos.x - bone.x;
                     const dy = playerPos.y - bone.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
                     
-                    if (distance < 18) {
-                        // Different damage based on bone type
+                    // Character-specific hitbox
+                    let hitbox = 8;
+                    if (selectedCharacter === 'papyrus') hitbox = 10;
+                    if (selectedCharacter === 'undyne') hitbox = 7;
+                    
+                    if (distance < hitbox + 15) {
                         let damage = 5;
                         if (bone.type === 'dart') damage = 10;
                         if (bone.type === 'chase') damage = 7;
-                        if (bone.type === 'explosion') damage = 12; // Reduced from 15
+                        if (bone.type === 'explosion') damage = 12;
                         
                         playerHP = Math.max(0, playerHP - damage);
                         iframes = 30;
+                        
+                        // Frisk ability: extra iframes
+                        if (selectedCharacter === 'frisk') {
+                            iframes = 45;
+                        }
+                        
                         sansExpression = 'wink';
                         showDamageFlash();
                         triggerScreenShake(15);
@@ -1145,13 +1327,17 @@
             
             // Check blaster collisions
             const firingBlasters = blasters.filter(b => b.charge === 60);
-            if (firingBlasters.length > 0 && iframes === 0) {
+            if (firingBlasters.length > 0 && iframes === 0 && !deflectActive) {
                 for (const blaster of firingBlasters) {
                     const dx = playerPos.x - blaster.x;
                     const dy = playerPos.y - blaster.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
                     
-                    if (distance < 50) {
+                    let hitbox = 8;
+                    if (selectedCharacter === 'papyrus') hitbox = 10;
+                    if (selectedCharacter === 'undyne') hitbox = 7;
+                    
+                    if (distance < hitbox + 42) {
                         playerHP = Math.max(0, playerHP - 10);
                         iframes = 30;
                         sansExpression = 'wink';
@@ -1164,40 +1350,58 @@
                 }
             }
             
-            // Check laser collisions
-            if (iframes === 0) {
+            // Check laser collisions - FIXED: Only damage on grid lines
+            if (iframes === 0 && !deflectActive) {
                 for (const laser of lasers) {
                     if (laser.active) {
                         if (laser.type === 'sweep') {
-                            if (playerPos.x >= laser.x && 
-                                playerPos.x <= laser.x + laser.width &&
-                                playerPos.y >= laser.y && 
-                                playerPos.y <= laser.y + laser.height) {
-                                playerHP = Math.max(0, playerHP - 15); // Reduced from 20
+                            let hitbox = 8;
+                            if (selectedCharacter === 'papyrus') hitbox = 10;
+                            if (selectedCharacter === 'undyne') hitbox = 7;
+                            
+                            if (playerPos.x >= laser.x - hitbox && 
+                                playerPos.x <= laser.x + laser.width + hitbox &&
+                                playerPos.y >= laser.y - hitbox && 
+                                playerPos.y <= laser.y + laser.height + hitbox) {
+                                playerHP = Math.max(0, playerHP - 15);
                                 iframes = 40;
                                 sansExpression = 'wink';
                                 showDamageFlash();
-                                triggerScreenShake(20); // Reduced intensity
+                                triggerScreenShake(20);
                                 createParticles(playerPos.x, playerPos.y, '#ff4444', 15);
                                 setTimeout(() => sansExpression = 'normal', 500);
                                 break;
                             }
                         } else if (laser.type === 'grid') {
-                            // Check if player is on grid intersection - much less OP
-                            const gridX = Math.floor((playerPos.x - laser.x) / laser.spacing);
-                            const gridY = Math.floor((playerPos.y - laser.y) / laser.spacing);
+                            // FIXED: Only damage when on grid lines, not spaces
+                            let onVerticalLine = false;
+                            let onHorizontalLine = false;
                             
-                            // Only damage if player is exactly on intersection (harder to hit)
-                            const exactX = Math.abs(playerPos.x - (laser.x + gridX * laser.spacing)) < 5;
-                            const exactY = Math.abs(playerPos.y - (laser.y + gridY * laser.spacing)) < 5;
+                            // Check vertical lines
+                            for (let i = 0; i < laser.columns; i++) {
+                                const x = laser.x + i * laser.spacing;
+                                if (Math.abs(playerPos.x - x) < 5) {
+                                    onVerticalLine = true;
+                                    break;
+                                }
+                            }
                             
-                            if (gridX >= 0 && gridX < laser.columns && 
-                                gridY >= 0 && gridY < laser.rows && exactX && exactY) {
-                                playerHP = Math.max(0, playerHP - 8); // Reduced damage
+                            // Check horizontal lines
+                            for (let i = 0; i < laser.rows; i++) {
+                                const y = laser.y + i * laser.spacing;
+                                if (Math.abs(playerPos.y - y) < 5) {
+                                    onHorizontalLine = true;
+                                    break;
+                                }
+                            }
+                            
+                            // Only damage if on a grid line (vertical OR horizontal)
+                            if (onVerticalLine || onHorizontalLine) {
+                                playerHP = Math.max(0, playerHP - 8);
                                 iframes = 30;
                                 sansExpression = 'wink';
                                 showDamageFlash();
-                                triggerScreenShake(10); // Reduced intensity
+                                triggerScreenShake(10);
                                 createParticles(playerPos.x, playerPos.y, '#ff88ff', 8);
                                 setTimeout(() => sansExpression = 'normal', 500);
                                 break;
@@ -1205,6 +1409,21 @@
                         }
                     }
                 }
+            }
+            
+            // Papyrus deflect ability
+            if (selectedCharacter === 'papyrus' && keysPressed[' '] && abilityCooldown <= 0) {
+                deflectActive = true;
+                deflectTimer = 0.5; // 0.5 seconds of protection
+                abilityCooldown = 5; // 5 second cooldown
+            }
+            
+            // Flowey time slow ability
+            if (selectedCharacter === 'flowey' && keysPressed['x'] && abilityCooldown <= 0) {
+                timeSlowActive = true;
+                timeSlowDuration = 3; // 3 seconds of slow time
+                abilityCooldown = 10; // 10 second cooldown
+                triggerScreenShake(5);
             }
             
             // Update iframes
@@ -1234,28 +1453,23 @@
         function startAttackPhase() {
             if (gameState !== 'fighting') return;
             
-            // Randomly select an attack type
             const randomAttack = ATTACK_TYPES[Math.floor(Math.random() * ATTACK_TYPES.length)];
             currentAttack = randomAttack;
             showAttackIndicator(randomAttack);
             
-            // Difficulty-specific bone speed
             const boneSpeed = DIFFICULTY_SETTINGS[difficulty].boneSpeed;
             
-            // Show warning for dangerous attacks
             if (randomAttack === 'laser-sweep' || randomAttack === 'laser-grid' || randomAttack === 'bone-explosion') {
                 showWarningFlash();
-                // Start laser timer for dangerous attacks
                 if (randomAttack === 'laser-sweep') {
-                    startLaserTimer(4); // 4 second timer
+                    startLaserTimer(4);
                 } else if (randomAttack === 'bone-explosion') {
-                    startLaserTimer(3); // 3 second timer
+                    startLaserTimer(3);
                 }
             }
             
             switch(randomAttack) {
                 case 'bones-horizontal':
-                    // Horizontal bones from sides
                     const side = Math.random() < 0.5 ? 'left' : 'right';
                     for (let i = 0; i < 5; i++) {
                         bones.push({
@@ -1268,7 +1482,6 @@
                     break;
                     
                 case 'bones-vertical':
-                    // Vertical bones from top and bottom
                     const topCount = Math.floor(Math.random() * 3) + 3;
                     const bottomCount = Math.floor(Math.random() * 3) + 3;
                     
@@ -1292,7 +1505,6 @@
                     break;
                     
                 case 'bones-spiral':
-                    // Spiral bones from center
                     const spiralCount = 12;
                     for (let i = 0; i < spiralCount; i++) {
                         bones.push({
@@ -1308,7 +1520,6 @@
                     break;
                     
                 case 'bones-waves':
-                    // Wave pattern bones
                     for (let i = 0; i < 6; i++) {
                         bones.push({
                             type: 'wave',
@@ -1321,7 +1532,6 @@
                     break;
                     
                 case 'bones-darts':
-                    // Fast darts from random positions
                     for (let i = 0; i < 8; i++) {
                         const startX = BATTLE_BOX.x + Math.random() * BATTLE_BOX.width;
                         const startY = BATTLE_BOX.y + Math.random() * BATTLE_BOX.height;
@@ -1340,7 +1550,6 @@
                     break;
                     
                 case 'blasters':
-                    // Blasters with random positions
                     const blasterCount = Math.floor(Math.random() * 2) + 1;
                     for (let i = 0; i < blasterCount; i++) {
                         blasters.push({
@@ -1352,7 +1561,6 @@
                     break;
                     
                 case 'slam':
-                    // Slam attack with platforms
                     slamState = 'active';
                     gravity = GRAVITY;
                     platforms = [
@@ -1360,7 +1568,6 @@
                         { x: BATTLE_BOX.x + 250, y: BATTLE_BOX.y + 80, width: 100 }
                     ];
                     
-                    // Spawn bones from bottom
                     for (let i = 0; i < 5; i++) {
                         bones.push({
                             x: BATTLE_BOX.x + 50 + i * 70,
@@ -1379,7 +1586,6 @@
                     break;
                     
                 case 'bones-rain':
-                    // Bone rain from top
                     for (let i = 0; i < 15; i++) {
                         bones.push({
                             x: BATTLE_BOX.x + 20 + Math.random() * (BATTLE_BOX.width - 40),
@@ -1391,8 +1597,7 @@
                     break;
                     
                 case 'bones-chase':
-                    // Homing bones (less OP)
-                    for (let i = 0; i < 3; i++) { // Reduced count
+                    for (let i = 0; i < 3; i++) {
                         bones.push({
                             type: 'chase',
                             x: BATTLE_BOX.x + Math.random() * BATTLE_BOX.width,
@@ -1402,16 +1607,13 @@
                             speed: DIFFICULTY_SETTINGS[difficulty].homingSpeed
                         });
                     }
-                    // Activate homing phase
                     startHomingPhase();
                     break;
                     
                 case 'bones-cross':
-                    // Cross pattern bones
                     const centerX = BATTLE_BOX.x + BATTLE_BOX.width/2;
                     const centerY = BATTLE_BOX.y + BATTLE_BOX.height/2;
                     
-                    // Horizontal bones
                     for (let i = 0; i < 4; i++) {
                         bones.push({
                             x: BATTLE_BOX.x,
@@ -1427,7 +1629,6 @@
                         });
                     }
                     
-                    // Vertical bones
                     for (let i = 0; i < 4; i++) {
                         bones.push({
                             x: centerX - 40 + i * 25,
@@ -1445,14 +1646,13 @@
                     break;
                     
                 case 'laser-sweep':
-                    // Sweeping horizontal laser - less frequent
-                    if (Math.random() > 0.3) { // Only 70% chance to create
+                    if (Math.random() > 0.3) {
                         lasers.push({
                             type: 'sweep',
                             x: BATTLE_BOX.x,
                             y: BATTLE_BOX.y + Math.random() * BATTLE_BOX.height,
-                            width: 15, // Narrower laser
-                            height: 15, // Smaller hitbox
+                            width: 15,
+                            height: 15,
                             active: false,
                             sweepPhase: 0,
                             life: 250
@@ -1461,21 +1661,20 @@
                     break;
                     
                 case 'laser-grid':
-                    // Grid laser pattern - much less OP
+                    // FIXED: Only damage on grid lines, not spaces
                     lasers.push({
                         type: 'grid',
                         x: BATTLE_BOX.x,
                         y: BATTLE_BOX.y,
                         width: BATTLE_BOX.width,
                         height: BATTLE_BOX.height,
-                        spacing: 60, // Wider spacing (was 40)
+                        spacing: 60,
                         columns: Math.floor(BATTLE_BOX.width / 60),
                         rows: Math.floor(BATTLE_BOX.height / 60),
                         active: false,
-                        life: 150 // Shorter duration
+                        life: 150
                     });
                     
-                    // Activate grid periodically - less frequent
                     let gridActivation = 0;
                     const gridInterval = setInterval(() => {
                         if (!lasers.some(l => l.type === 'grid')) {
@@ -1489,24 +1688,23 @@
                             gridLaser.active = true;
                             setTimeout(() => {
                                 if (gridLaser) gridLaser.active = false;
-                            }, 150); // Shorter activation
+                            }, 150);
                         }
                         
-                        if (gridActivation > 6) { // Fewer activations
+                        if (gridActivation > 6) {
                             clearInterval(gridInterval);
                         }
-                    }, 1000); // Longer delay between activations
+                    }, 1000);
                     break;
                     
                 case 'bone-explosion':
-                    // Bone explosion attack - fewer bones
-                    const explosionCount = 8; // Reduced from 12
+                    const explosionCount = 8;
                     for (let i = 0; i < explosionCount; i++) {
                         bones.push({
                             type: 'explosion',
                             x: BATTLE_BOX.x + BATTLE_BOX.width/2,
                             y: BATTLE_BOX.y + BATTLE_BOX.height/2,
-                            vx: Math.cos(i / explosionCount * Math.PI * 2) * 3, // Slower speed
+                            vx: Math.cos(i / explosionCount * Math.PI * 2) * 3,
                             vy: Math.sin(i / explosionCount * Math.PI * 2) * 3,
                             pulsePhase: 0
                         });
@@ -1514,21 +1712,18 @@
                     break;
                     
                 case 'gravity-reverse':
-                    // Reverse gravity attack
                     startReverseGravity();
-                    // Spawn bones that fall upward - fewer bones
-                    for (let i = 0; i < 7; i++) { // Reduced from 10
+                    for (let i = 0; i < 7; i++) {
                         bones.push({
                             x: BATTLE_BOX.x + 20 + Math.random() * (BATTLE_BOX.width - 40),
                             y: BATTLE_BOX.y + BATTLE_BOX.height + 20,
-                            vx: (Math.random() - 0.5) * 2, // Slower horizontal speed
-                            vy: 4 // Slower upward speed
+                            vx: (Math.random() - 0.5) * 2,
+                            vy: 4
                         });
                     }
                     break;
             }
             
-            // Schedule next attack (random interval between 1.5-3 seconds)
             const nextAttackTime = 1500 + Math.random() * 1500;
             setTimeout(startAttackPhase, nextAttackTime);
         }
@@ -1538,7 +1733,6 @@
             winTimerInterval = setInterval(() => {
                 winTimer -= 0.1;
                 
-                // Update Sans expression as time runs out
                 if (winTimer < 10) {
                     sansExpression = 'wink';
                     setTimeout(() => {
@@ -1546,7 +1740,6 @@
                     }, 300);
                 }
                 
-                // Check win condition
                 if (winTimer <= 0 && gameState === 'fighting') {
                     clearInterval(winTimerInterval);
                     stopHomingPhase();
